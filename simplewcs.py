@@ -50,13 +50,14 @@ class SimpleWCS:
 
         # instance attributes
         self.iface = iface
-        globals()['iface'] = iface
 
         self.actions = []
         self.menu = self.tr(u'&Simple WCS 2')
         self.firstStart = None
         self.wcs = ''
         self.acceptedVersions = ['2.1.0', '2.0.1', '2.0.0']
+
+        self.task = None  # task as instance variable so no garbage collector eats it in the wrong moment
 
 
     def tr(self, message):
@@ -149,7 +150,6 @@ class SimpleWCS:
 
             self.dlg.leUrl.textChanged.connect(self.enableBtnGetCapabilities)
 
-            globals()['btnGetCoverage'] = self.dlg.btnGetCoverage
             self.dlg.btnGetCoverage.clicked.connect(self.getCovTask)
             self.dlg.btnGetCoverage.setEnabled(False)
 
@@ -303,21 +303,54 @@ class SimpleWCS:
 
 
     def getCovTask(self):
-        """
-        Create an asynchronous QgsTask and add it to the taskManager.
-        Task variable is declared as 'global' because of a
-        bug in QgsTask or taskManager which prevents the
-        'on_finished' function to be executed correctly
-        """
-
+        """Create an asynchronous QgsTask and add it to the taskManager."""
         self.getCovProgressBar()
 
         url, covId = self.getCovQueryStr()
-        globals()['gctask'] = QgsTask.fromFunction(u'GetCoverage', getCoverage, url, covId, on_finished=addRLayer)
-        QgsApplication.taskManager().addTask(globals()['gctask'])
+
+        # task as instance variable so on_finished works
+        # ref https://gis.stackexchange.com/a/435487/51035
+        # ref https://gis-ops.com/qgis-3-plugin-tutorial-background-processing/
+        self.task = QgsTask.fromFunction('Get Coverage', self.getCoverage, url, covId, on_finished=self.addRLayer)
+        QgsApplication.taskManager().addTask(self.task)
+
         self.dlg.btnGetCoverage.setEnabled(False)
 
 
+    def getCoverage(self, task, url, covId):
+        self.logInfoMessage('Requested URL: ' + url)
+
+        try:
+            file, header = urllib.request.urlretrieve(url)
+        except HTTPError as e:
+            self.logWarnMessage(str(e))
+            self.logWarnMessage(str(e.read().decode()))
+            return None
+        except URLError as e:
+            self.logWarnMessage(str(e))
+            self.logWarnMessage(str(e.read().decode()))
+            return None
+
+        return {'file': file, 'coverage': covId}
+
+
+    def addRLayer(self, exception, result=None):
+        """
+        Add the response layer to MapCanvas
+        :param exception: Exception if one was raised in task function
+        :param result: dict with "file" (path) and "coverage" as strings, set to None by default
+            e.g. {'file': '/tmp/tmpu1igp2d4', 'coverage': 'dwd__Natural_Earth_Map'}
+        :return:
+        """
+        if result:
+            rlayer = QgsRasterLayer(result['file'], result['coverage'], 'gdal')
+            QgsProject.instance().addMapLayer(rlayer)
+        else:
+            self.openLog()
+            self.logWarnMessage('Error while loading Coverage!')
+
+        self.dlg.btnGetCoverage.setEnabled(True)
+        self.iface.messageBar().clearWidgets()
     def getCovQueryStr(self):
         version = self.dlg.lblVersion.text()
 
@@ -358,7 +391,7 @@ class SimpleWCS:
 
         progressMessageBar = self.iface.messageBar().createMessage("GetCoverage Request")
         progressMessageBar.layout().addWidget(self.progress)
-        globals()['iface'].messageBar().pushWidget(progressMessageBar, Qgis.Info)
+        self.iface.messageBar().pushWidget(progressMessageBar, Qgis.Info)
 
 
     def requestXML(self, url):
@@ -399,64 +432,13 @@ class SimpleWCS:
             self.dlg.btnGetCapabilities.setEnabled(True)
 
 
-    @classmethod
-    def enableBtnGetCoverage(self):
-        globals()['btnGetCoverage'].setEnabled(True)
-
-
-    @classmethod
     def logInfoMessage(self, msg):
         QgsMessageLog.logMessage(msg, logheader, Qgis.Info)
 
 
-    @classmethod
     def logWarnMessage(self, msg):
         QgsMessageLog.logMessage(msg, logheader, Qgis.Warning)
 
 
-    @classmethod
     def openLog(self):
-        globals()['iface'].mainWindow().findChild(QDockWidget, 'MessageLog').show()
-
-
-    @classmethod
-    def cancelMessageBar(self):
-        globals()['iface'].messageBar().clearWidgets()
-
-
-def getCoverage(task, url, covId):
-    SimpleWCS.logInfoMessage('Requested URL: ' + url)
-
-    try:
-        file, header = urllib.request.urlretrieve(url)
-    except HTTPError as e:
-        SimpleWCS.logWarnMessage(str(e))
-        SimpleWCS.logWarnMessage(str(e.read().decode()))
-        return None
-    except URLError as e:
-        SimpleWCS.logWarnMessage(str(e))
-        SimpleWCS.logWarnMessage(str(e.read().decode()))
-        return None
-
-    return {'file': file, 'coverage': covId}
-
-
-def addRLayer(exception, values=None):
-    """
-    Add the response layer to MapCanvas
-    Works only with QgsTask if this function is global...
-    :param exception: useless
-    :param values: filepath and coverage as string, set to None by default
-    :return:
-    """
-
-    if values != None:
-        rlayer = QgsRasterLayer(values['file'], values['coverage'], 'gdal')
-        QgsProject.instance().addMapLayer(rlayer)
-    else:
-        SimpleWCS.openLog()
-        SimpleWCS.logWarnMessage('Error while loading Coverage!')
-
-    SimpleWCS.enableBtnGetCoverage()
-    SimpleWCS.cancelMessageBar()
-
+        self.iface.mainWindow().findChild(QDockWidget, 'MessageLog').show()
