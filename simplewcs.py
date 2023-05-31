@@ -221,6 +221,8 @@ class SimpleWCS:
         """
 
         title = self.wcs.getTitle()
+        if title is None:
+            title = self.tr("Unknown, not communicated by service")
         self.dlg.lblTitle.setText(title)
 
         self.dlg.lblVersion.setText(version)
@@ -251,12 +253,18 @@ class SimpleWCS:
 
     def setTabInformation(self):
         provider = self.wcs.getProvider()
+        if provider is None:
+            provider = self.tr("Unknown, not communicated by service")
         self.dlg.lblProvider.setText(provider)
 
         fees = self.wcs.getFees()
+        if fees is None:
+            fees = self.tr("Unknown, not communicated by service")
         self.dlg.lblFees.setText(fees)
 
         constraints = self.wcs.getConstraints()
+        if constraints is None:
+            constraints = self.tr("Unknown, not communicated by service")
         self.dlg.lblConstraints.setText(constraints)
 
 

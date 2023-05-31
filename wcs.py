@@ -63,7 +63,10 @@ class WCS:
 
 
     def getTitle(self):
-        return self.title.text
+        if self.title is not None:
+            return self.title.text
+        else:
+            return None
 
 
     def setTitle(self, title):
@@ -71,7 +74,10 @@ class WCS:
 
 
     def getProvider(self):
-        return self.provider.text
+        if self.provider is not None:
+            return self.provider.text
+        else:
+            return None
 
 
     def setProvider(self, provider):
@@ -79,7 +85,10 @@ class WCS:
 
 
     def getFees(self):
-        return self.fees.text
+        if self.fees is not None:
+            return self.fees.text
+        else:
+            return None
 
 
     def setFees(self, fees):
@@ -87,7 +96,10 @@ class WCS:
 
 
     def getConstraints(self):
-        return self.constraints.text
+        if self.constraints is not None:
+            return self.constraints.text
+        else:
+            return None
 
 
     def setConstraints(self, constraints):
