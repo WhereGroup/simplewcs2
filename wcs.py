@@ -15,50 +15,50 @@ class WCS:
 
 
     def __init__(self, capabilities):
-        ows = '{http://www.opengis.net/ows/2.0}'
-        wcs = '{http://www.opengis.net/wcs/2.0}'
-        crs = '{http://www.opengis.net/wcs/crs/1.0}'
-        crs_nonstandard = '{http://www.opengis.net/wcs/service-extension/crs/1.0}'
-        xlink = '{http://www.w3.org/1999/xlink}'
+        # TODO is it ok that these use .0 versions?
+        ows_ns = '{http://www.opengis.net/ows/2.0}'
+        wcs_ns = '{http://www.opengis.net/wcs/2.0}'
+        crs_ns = '{http://www.opengis.net/wcs/crs/1.0}'  # was overwritten in loop below!
+        crs_serviceextension_ns = '{http://www.opengis.net/wcs/service-extension/crs/1.0}'
+        xlink_ns = '{http://www.w3.org/1999/xlink}'
 
         self.capabilities = capabilities
 
-        self.describeCoverageUrl = self.capabilities.find(ows + 'OperationsMetadata/' + ows + 'Operation[@name="DescribeCoverage"]/' + ows + 'DCP/' + ows + 'HTTP/' + ows + 'Get').attrib[xlink + 'href']
+        self.describeCoverageUrl = self.capabilities.find(ows_ns + 'OperationsMetadata/' + ows_ns + 'Operation[@name="DescribeCoverage"]/' + ows_ns + 'DCP/' + ows_ns + 'HTTP/' + ows_ns + 'Get').attrib[xlink_ns + 'href']
 
-        self.getCoverageUrl = self.capabilities.find(ows + 'OperationsMetadata/' + ows + 'Operation[@name="GetCoverage"]/' + ows + 'DCP/' + ows + 'HTTP/' + ows + 'Get').attrib[xlink + 'href']
+        self.getCoverageUrl = self.capabilities.find(ows_ns + 'OperationsMetadata/' + ows_ns + 'Operation[@name="GetCoverage"]/' + ows_ns + 'DCP/' + ows_ns + 'HTTP/' + ows_ns + 'Get').attrib[xlink_ns + 'href']
 
-        self.title = self.capabilities.find(ows + 'ServiceIdentification/' + ows + 'Title')
+        self.title = self.capabilities.find(ows_ns + 'ServiceIdentification/' + ows_ns + 'Title')
 
-        self.provider = self.capabilities.find(ows + 'ServiceProvider/' + ows + 'ProviderName')
+        self.provider = self.capabilities.find(ows_ns + 'ServiceProvider/' + ows_ns + 'ProviderName')
 
-        self.fees = self.capabilities.find(ows + 'ServiceIdentification/' + ows + 'Fees')
+        self.fees = self.capabilities.find(ows_ns + 'ServiceIdentification/' + ows_ns + 'Fees')
 
-        self.constraints = self.capabilities.find(ows + 'ServiceIdentification/' + ows + 'AccessConstraints')
+        self.constraints = self.capabilities.find(ows_ns + 'ServiceIdentification/' + ows_ns + 'AccessConstraints')
 
         self.versions = []
-        contents = self.capabilities.find(ows + 'ServiceIdentification')
-        for version in contents.findall('.//' + ows + 'ServiceTypeVersion'):
+        serviceIdentification = self.capabilities.find(ows_ns + 'ServiceIdentification')
+        for version in serviceIdentification.findall('.//' + ows_ns + 'ServiceTypeVersion'):
             self.versions.append(version.text)
 
         self.crsx = []
-        contents = self.capabilities.find(wcs + 'ServiceMetadata')
-        for crs in contents.findall('.//' + wcs + 'Extension/' + crs + 'CrsMetadata/' + crs + 'crsSupported'):
+        serviceMetadata = self.capabilities.find(wcs_ns + 'ServiceMetadata')
+        for crs in serviceMetadata.findall('.//' + wcs_ns + 'Extension/' + crs_ns + 'CrsMetadata/' + crs_ns + 'crsSupported'):
             self.crsx.append(crs.text)
 
         # in case of wrong crs extension implementation
         if not self.crsx:
-            contents = self.capabilities.find(wcs + 'ServiceMetadata')
-            for crs in contents.findall('.//' + wcs + 'Extension/' + crs_nonstandard + 'crsSupported'):
+            for crs in serviceMetadata.findall('.//' + wcs_ns + 'Extension/' + crs_serviceextension_ns + 'crsSupported'):
+                self.crsx.append(crs.text)
                 self.crsx.append(crs.text)
 
         self.formats = []
-        contents = self.capabilities.find(wcs + 'ServiceMetadata')
-        for format in contents.findall('.//' + wcs + 'formatSupported'):
+        for format in serviceMetadata.findall('.//' + wcs_ns + 'formatSupported'):
             self.formats.append(format.text)
 
         self.covIds = []
-        contents = self.capabilities.find(wcs + 'Contents')
-        for coverage in contents.findall('.//' + wcs + 'CoverageSummary/' + wcs + 'CoverageId'):
+        contents = self.capabilities.find(wcs_ns + 'Contents')
+        for coverage in contents.findall('.//' + wcs_ns + 'CoverageSummary/' + wcs_ns + 'CoverageId'):
             self.covIds.append(coverage.text)
 
 

@@ -13,19 +13,19 @@ class Coverage:
 
 
     def __init__(self, coverage):
-        wcs = '{http://www.opengis.net/wcs/2.0}'
-        gml = '{http://www.opengis.net/gml/3.2}'
-        gmlcov = '{http://www.opengis.net/gmlcov/1.0}'
-        swe = '{http://www.opengis.net/swe/2.0}'
+        wcs_ns = '{http://www.opengis.net/wcs/2.0}'
+        gml_ns = '{http://www.opengis.net/gml/3.2}'
+        gmlcov_ns = '{http://www.opengis.net/gmlcov/1.0}'
+        swe_ns = '{http://www.opengis.net/swe/2.0}'
 
         self.coverage = coverage
 
-        self.axisLabels = self.coverage.find(wcs + 'CoverageDescription/' + gml + 'boundedBy/' + gml + 'Envelope').attrib['axisLabels']
+        self.axisLabels = self.coverage.find(wcs_ns + 'CoverageDescription/' + gml_ns + 'boundedBy/' + gml_ns + 'Envelope').attrib['axisLabels']
         self.axisLabels = self.axisLabels.split(" ")
 
         self.range = []
-        contents = self.coverage.find(wcs + 'CoverageDescription')
-        for field in contents.findall('.//' + gmlcov + 'rangeType/' + swe + 'DataRecord/' + swe + 'field'):
+        coverageDescription = self.coverage.find(wcs_ns + 'CoverageDescription')
+        for field in coverageDescription.findall('.//' + gmlcov_ns + 'rangeType/' + swe_ns + 'DataRecord/' + swe_ns + 'field'):
             name = field.get('name')
             self.range.append(name)
 
