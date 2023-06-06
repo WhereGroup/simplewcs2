@@ -46,10 +46,14 @@ class WCS:
         for crs in serviceMetadata.findall('.//' + wcs_ns + 'Extension/' + crs_ns + 'CrsMetadata/' + crs_ns + 'crsSupported'):
             self.crsx.append(crs.text)
 
-        # in case of wrong crs extension implementation
+        # in case of wrong crs extension implementation  # TODO wrong or just different? are these specific WCS servers?
         if not self.crsx:
             for crs in serviceMetadata.findall('.//' + wcs_ns + 'Extension/' + crs_serviceextension_ns + 'crsSupported'):
                 self.crsx.append(crs.text)
+
+        # let's add another one, from a rasdaman powered WCS we got this
+        if not self.crsx:
+            for crs in serviceMetadata.findall('.//' + wcs_ns + 'Extension/' + crs_serviceextension_ns + 'CrsMetadata/' + crs_serviceextension_ns + 'crsSupported'):
                 self.crsx.append(crs.text)
 
         self.formats = []
