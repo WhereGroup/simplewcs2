@@ -9,22 +9,24 @@
 
         Functions are written in mixedCase, see https://docs.qgis.org/testing/en/docs/developers_guide/codingstandards.html
 """
+import os.path
+import urllib
 
-from qgis.PyQt.QtCore import *
-from qgis.PyQt.QtGui import *
-from qgis.PyQt.QtWidgets import *
-from .simplewcs_dialog import SimpleWCSDialog
-from .resources import *
-from .wcs import *
-from .coverage import *
-from .utils import crsAsOgcUri, switchCrsUriToOpenGis
+from xml.etree import ElementTree as ET
+
+from qgis.PyQt.QtCore import Qt, QCoreApplication, QLocale, QSettings, QTranslator
+from qgis.PyQt.QtGui import QIcon
+from qgis.PyQt.QtWidgets import QAction, QDockWidget, QProgressBar
+
 from qgis.core import QgsApplication, QgsMessageLog, QgsRasterLayer, QgsProject, Qgis, QgsTask, \
     QgsCoordinateReferenceSystem, QgsPointXY, QgsCoordinateTransform
-from urllib.error import HTTPError, URLError
-from urllib.request import Request
-from urllib.parse import urlparse
 
-import os.path, urllib
+from .coverage import Coverage
+from .resources import *  # magically sets up icon etc...
+from .utils import crsAsOgcUri, switchCrsUriToOpenGis
+from .simplewcs_dialog import SimpleWCSDialog
+from .wcs import WCS
+
 
 logheader = 'Simple WCS 2'
 
@@ -39,7 +41,7 @@ class SimpleWCS:
         """
 
         self.plugin_dir = os.path.dirname(__file__)
-        locale = QSettings().value('locale/userLocale')[0:2]
+        locale = QSettings().value('locale/userLocale', QLocale().name())[0:2]
         locale_path = os.path.join(
             self.plugin_dir,
             'i18n',
@@ -56,7 +58,7 @@ class SimpleWCS:
         self.actions = []
         self.menu = self.tr(u'&Simple WCS 2')
         self.firstStart = None
-        self.wcs = ''
+        self.wcs: WCS = None
         self.acceptedVersions = ['2.1.0', '2.0.1', '2.0.0']
 
         self.task = None  # task as instance variable so no garbage collector eats it in the wrong moment
@@ -165,7 +167,7 @@ class SimpleWCS:
     def getCapabilities(self):
         self.cleanTabGetCoverage()
 
-        self.wcs = ''
+        self.wcs = None
 
         baseUrl = self.dlg.leUrl.text()
 
@@ -176,7 +178,7 @@ class SimpleWCS:
         url = self.checkUrlSyntax(baseUrl)
         xmlResponse = self.requestXML(url + querystring)
 
-        capabilities = xml.etree.ElementTree.parse(xmlResponse).getroot()
+        capabilities = ET.parse(xmlResponse).getroot()
         self.wcs = WCS(capabilities)
 
         versions = self.wcs.getVersions()
@@ -306,7 +308,7 @@ class SimpleWCS:
         url = self.checkUrlSyntax(describeCoverageUrl)
         xmlResponse = self.requestXML(url + querystring)
 
-        describeCoverageRoot = xml.etree.ElementTree.parse(xmlResponse).getroot()
+        describeCoverageRoot = ET.parse(xmlResponse).getroot()
         coverage = Coverage(describeCoverageRoot)
 
         return coverage
@@ -338,11 +340,11 @@ class SimpleWCS:
 
         try:
             file, header = urllib.request.urlretrieve(url)
-        except HTTPError as e:
+        except urllib.error.HTTPError as e:  # TODO raise instead
             self.logWarnMessage(str(e))
             self.logWarnMessage(str(e.read().decode()))
             return None
-        except URLError as e:
+        except urllib.error.URLError as e:  # TODO raise instead
             self.logWarnMessage(str(e))
             self.logWarnMessage(str(e.read().decode()))
             return None
@@ -463,12 +465,12 @@ class SimpleWCS:
 
         try:
             xmlReponse = urllib.request.urlopen(url)
-        except HTTPError as e:
+        except urllib.error.HTTPError as e:
             self.logWarnMessage(str(e))
             self.logWarnMessage(str(e.read().decode()))
             self.openLog()
             return None
-        except URLError as e:
+        except urllib.error.URLError as e:
             self.logWarnMessage(str(e))
             self.logWarnMessage(str(e.read().decode()))
             self.openLog()

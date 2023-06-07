@@ -9,7 +9,6 @@
         Functions are written in mixedCase, see https://docs.qgis.org/testing/en/docs/developers_guide/codingstandards.html
 """
 
-import os.path, urllib, xml.etree.ElementTree
 
 class WCS:
 
