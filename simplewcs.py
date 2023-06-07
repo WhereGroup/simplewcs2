@@ -147,7 +147,6 @@ class SimpleWCS:
             self.dlg = SimpleWCSDialog()
 
             self.dlg.cbVersion.addItems(self.acceptedVersions)
-            self.dlg.cbVersion.setCurrentIndex(1)
 
             self.dlg.btnGetCapabilities.clicked.connect(self.getCapabilities)
             self.dlg.btnGetCapabilities.setEnabled(False)
