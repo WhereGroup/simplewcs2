@@ -161,8 +161,6 @@ class SimpleWCS:
 
         self.dlg.show()
 
-        result = self.dlg.exec_()
-
 
     def getCapabilities(self):
         self.cleanTabGetCoverage()
