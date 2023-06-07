@@ -357,6 +357,10 @@ class SimpleWCS:
             e.g. {'file': '/tmp/tmpu1igp2d4', 'coverage': 'dwd__Natural_Earth_Map'}
         :return:
         """
+
+        if exception:
+            raise exception
+
         if result:
             rlayer = QgsRasterLayer(result['file'], result['coverage'], 'gdal')
             QgsProject.instance().addMapLayer(rlayer)
