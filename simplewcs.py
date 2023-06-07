@@ -17,7 +17,9 @@ from .simplewcs_dialog import SimpleWCSDialog
 from .resources import *
 from .wcs import *
 from .coverage import *
-from qgis.core import QgsApplication, QgsMessageLog, QgsRasterLayer, QgsProject, QgsLayerTreeLayer, Qgis, QgsTask, QgsRectangle, QgsDataSourceUri, QgsCoordinateReferenceSystem
+from .utils import crsAsOgcUri, switchCrsUriToOpenGis
+from qgis.core import QgsApplication, QgsMessageLog, QgsRasterLayer, QgsProject, Qgis, QgsTask, \
+    QgsCoordinateReferenceSystem, QgsPointXY, QgsCoordinateTransform
 from urllib.error import HTTPError, URLError
 from urllib.request import Request
 from urllib.parse import urlparse
@@ -314,12 +316,18 @@ class SimpleWCS:
         """Create an asynchronous QgsTask and add it to the taskManager."""
         self.getCovProgressBar()
 
-        url, covId = self.getCovQueryStr()
+        try:
+            url, covId = self.getCovQueryStr()
+        except ValueError as e:
+            self.logWarnMessage(str(e))
+            return
 
         # task as instance variable so on_finished works
         # ref https://gis.stackexchange.com/a/435487/51035
         # ref https://gis-ops.com/qgis-3-plugin-tutorial-background-processing/
-        self.task = QgsTask.fromFunction('Get Coverage', self.getCoverage, url, covId, on_finished=self.addRLayer)
+        self.task = QgsTask.fromFunction(
+            'Get Coverage', self.getCoverage, url, covId, on_finished=self.addRLayer, flags=QgsTask.CanCancel
+        )
         QgsApplication.taskManager().addTask(self.task)
 
         self.dlg.btnGetCoverage.setEnabled(False)
@@ -360,6 +368,11 @@ class SimpleWCS:
         self.dlg.btnGetCoverage.setEnabled(True)
         self.iface.messageBar().clearWidgets()
     def getCovQueryStr(self):
+        """Returns a query string for an GetCoverage request with the current dialog settings.
+
+        Raises:
+            ValueError: If a OGC URI string could not be created for the map CRS
+        """
         version = self.dlg.lblVersion.text()
 
         covId = self.dlg.cbCoverage.currentText()
@@ -368,20 +381,63 @@ class SimpleWCS:
         #range = coverage.getRange()
         #self.logInfoMessage(str(range))
 
-        labels = coverage.getAxisLabels()
-        label0 = labels[0]
-        label1 = labels[1]
+        # output CRS must be one of the CRS offered by the service (as OGC URI), chosen by the user in the dialog
+        outputCrs = self.dlg.cbCRS.currentText()
 
-        extent = self.iface.mapCanvas().extent().toString()
-        coordinates = self.roundExtent(extent)
-        subset0 = label0 + '(' + str(coordinates[0]) + ',' + str(coordinates[2]) + ')'
-        subset1 = label1 + '(' + str(coordinates[1]) + ',' + str(coordinates[3]) + ')'
+        # map CRS is our QGIS project/canvas CRS
+        mapCrs = QgsProject.instance().crs()
+        try:
+            mapCrsUri = crsAsOgcUri(mapCrs)
+        except:
+            raise  # re-raise exception
 
-        outputcrs = self.dlg.cbCRS.currentText()
-        mapcrs = self.iface.mapCanvas().mapSettings().destinationCrs().authid()
+        # the coverage has a bounding box in its original CRS
+        # the subsetting coordinates must correspond to this unless a different subsetting CRS is set
+        coverageCrsUri = coverage.getBoundingBoxCrsUri()
+        if not coverageCrsUri.startswith("http://www.opengis.net/def/crs/"):
+            self.logWarnMessage(f"Trying to adjust {coverageCrsUri} to point to www.opengis.net database")
+            coverageCrsUri = switchCrsUriToOpenGis(coverageCrsUri)
+        coverageCrs = QgsCoordinateReferenceSystem.fromOgcWmsCrs(coverageCrsUri)
+
+        mapExtent = self.iface.mapCanvas().extent().toString()
+        coordinates = self.roundExtent(mapExtent)
+        topLeftPoint = QgsPointXY(coordinates[0], coordinates[1])
+        bottomRightPoint = QgsPointXY(coordinates[2], coordinates[3])
+        if mapCrsUri != coverageCrsUri:
+            self.logInfoMessage(f"Transforming extent coordinates from {mapCrsUri} to {coverageCrsUri}")
+            destCrs = QgsCoordinateReferenceSystem.fromOgcWmsCrs(coverageCrsUri)
+            transformation = QgsCoordinateTransform(mapCrs, destCrs, QgsProject.instance())
+            topLeftPoint = transformation.transform(topLeftPoint)
+            bottomRightPoint = transformation.transform(bottomRightPoint)
+
+        minX, maxX = sorted([topLeftPoint.x(), bottomRightPoint.x()])
+        minY, maxY = sorted([topLeftPoint.y(), bottomRightPoint.y()])
+
+        axisLabel0, axisLabel1 = coverage.getAxisLabels()
+
+        # we need to check if QGIS considers the CRS axes "inverted"
+        if coverageCrs.hasAxisInverted():
+            # e.g. WGS84 or Gauß-Krüger where "north" (y/lat) comes before "east" (x/lon)
+            subset0 = f"{axisLabel0}({minY},{maxY})"
+            subset1 = f"{axisLabel1}({minX},{maxX})"
+        else:
+            # any standard x/y, e/n crs, e. g. UTM
+            subset0 = f"{axisLabel0}({minX},{maxX})"
+            subset1 = f"{axisLabel1}({minY},{maxY})"
+
         format = self.dlg.cbFormat.currentText()
 
-        params = [('REQUEST', 'GetCoverage'), ('SERVICE', 'WCS'), ('VERSION', version), ('COVERAGEID', covId), ('OUTPUTCRS', outputcrs), ('SUBSETTINGCRS', mapcrs), ('FORMAT', format), ('SUBSET', subset0), ('SUBSET', subset1)]
+        params = [
+            ('REQUEST', 'GetCoverage'),
+            ('SERVICE', 'WCS'),
+            ('VERSION', version),
+            ('COVERAGEID', covId),
+            ('OUTPUTCRS', outputCrs),
+            ('SUBSETTINGCRS', coverageCrsUri),
+            ('FORMAT', format),
+            ('SUBSET', subset0),
+            ('SUBSET', subset1),
+        ]
 
         querystring = urllib.parse.urlencode(params)
 

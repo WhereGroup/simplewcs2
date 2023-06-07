@@ -20,14 +20,34 @@ class Coverage:
 
         self.coverage = coverage
 
-        self.axisLabels = self.coverage.find(wcs_ns + 'CoverageDescription/' + gml_ns + 'boundedBy/' + gml_ns + 'Envelope').attrib['axisLabels']
-        self.axisLabels = self.axisLabels.split(" ")
+        coverageDescription = self.coverage.find(wcs_ns + 'CoverageDescription')
+
+        envelope = coverageDescription.find(gml_ns + 'boundedBy/' + gml_ns + 'Envelope')
+        self.boundingBoxCrsUri = envelope.attrib['srsName']
+        if "crs-compound" in self.boundingBoxCrsUri:
+            raise NotImplementedError(f"Compound CRS are not supported (yet): {self.boundingBoxCrsUri}")
+        lowerCorner = [float(v) for v in envelope.find(gml_ns + "lowerCorner").text.split(" ")]
+        upperCorner = [float(v) for v in envelope.find(gml_ns + "upperCorner").text.split(" ")]
+        self.boundingBox = lowerCorner + upperCorner
+
+        # We only support 2 axes for now  # TODO or can we just ignore non-spatial ones?
+        self.axisLabels = envelope.attrib['axisLabels'].split(" ")
+        if len(self.axisLabels) > 2:
+            raise NotImplementedError(f"More than two axes are not supported (yet): {self.axisLabels}")
 
         self.range = []
         coverageDescription = self.coverage.find(wcs_ns + 'CoverageDescription')
         for field in coverageDescription.findall('.//' + gmlcov_ns + 'rangeType/' + swe_ns + 'DataRecord/' + swe_ns + 'field'):
             name = field.get('name')
             self.range.append(name)
+
+
+    def getBoundingBoxCrsUri(self):
+        return self.boundingBoxCrsUri
+
+
+    def getBoundingBox(self):
+        return self.boundingBox
 
 
     def getAxisLabels(self):
