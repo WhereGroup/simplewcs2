@@ -214,7 +214,7 @@
       </font>
      </property>
      <property name="text">
-      <string>CRS</string>
+      <string>Output CRS</string>
      </property>
     </widget>
     <widget class="QComboBox" name="cbCRS">
